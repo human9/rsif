@@ -30,6 +30,7 @@ fn run(config: Config) -> Result<(), Box<Error>> {
     Ok(())
 }
 
+/// Compare to t
 /// Get a set of all nodes in the network
 fn nodes<'a>(contents: &'a String) -> HashSet<&'a str> {
     contents.lines()
