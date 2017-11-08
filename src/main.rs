@@ -30,7 +30,7 @@ fn run(config: Config) -> Result<(), Box<Error>> {
 
     match config.operation.as_ref() {
         "nodes" => println!("{:?}", nodes(&contents)),
-        "test" => println!("{:?}", petgraph::dot::Dot::new(&sif_to_petgraph(&contents).graph)),
+        "test" => println!("{}", petgraph_to_sif(sif_to_petgraph(&contents).graph)),
         _ => println!("Unimplemented operation"),
     }
 
@@ -97,6 +97,16 @@ fn sif_to_petgraph<'a>(contents: &'a String) -> MappedGraph {
             }).collect();
             graph.graph.update_edge(nodes[0], nodes[1], t[2]);
             graph
+        })
+}
+
+/// Export petgraph as sif textfile
+fn petgraph_to_sif<'a>(mg: Graph<&'a str, &'a str, petgraph::Undirected, u32>) -> String {
+    mg.edge_indices()
+        .fold(String::new(), |mut s, index| {
+            let (a, b) = mg.edge_endpoints(index).unwrap();
+            s.push_str(&format!("{}\t{}\t{}\n", mg.node_weight(a).unwrap(), mg.edge_weight(index).unwrap(), mg.node_weight(b).unwrap()));
+            s
         })
 }
 
