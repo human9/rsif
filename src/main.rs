@@ -17,14 +17,14 @@ fn main() {
 }
 
 fn run(config: Config) -> Result<(), Box<Error>> {
-    let mut f = File::open(config.filename)?;
+    let mut f = File::open(&config.files[0])?;
 	
     let mut contents = String::new();
 	f.read_to_string(&mut contents)?;
 
     match config.operation.as_ref() {
         "nodes" => println!("{:?}", nodes(&contents)),
-        _ => println!("Unknown operation"),
+        _ => println!("Unimplemented operation"),
     }
 
     Ok(())
@@ -52,7 +52,7 @@ fn nodes<'a>(contents: &'a String) -> HashSet<&'a str> {
 
 struct Config {
     operation: String,
-    filename: String,
+    files: Vec<String>,
 }
 
 impl Config {
@@ -64,12 +64,15 @@ impl Config {
             None => return Err("No operation specified"),
         };
 
-        let filename = match args.next() {
-            Some(arg) => arg,
-            None => return Err("No file specified"),
-        };
+        let files: Vec<String> = args.collect();
 
-        Ok(Config { operation, filename })
+        match operation.as_ref() {
+            "union" | "intersection" => { if files.len() < 2 { return Err("Too few files") } },
+            "nodes" | "edges" => { if files.len() < 1 { return Err("Please specify a file") } },
+            _ => return Err("Unknown operation"),
+        }
+            
+
+        Ok(Config { operation, files })
     }
 }
-
