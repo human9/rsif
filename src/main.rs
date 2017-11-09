@@ -1,11 +1,9 @@
-extern crate sif_parse;
-use sif_parse::*;
+extern crate sifter;
+use sifter::*;
 
 use std::env;
 use std::process;
 use std::error::Error;
-use std::fs::File;
-use std::io::prelude::*;
 
 fn main() {
     let config = Config::new(env::args()).unwrap_or_else(|e| {
@@ -19,14 +17,10 @@ fn main() {
 }
 
 fn run(config: Config) -> Result<(), Box<Error>> {
-    let mut f = File::open(&config.files[0])?;
-	
-    let mut contents = String::new();
-	f.read_to_string(&mut contents)?;
-
+    
     match config.operation.as_ref() {
-        "nodes" => println!("{:?}", nodes(&contents)),
-        "test" => println!("{}", petgraph_to_sif(sif_to_petgraph(&contents).graph)),
+        "nodes" => list_nodes(&config.files[0])?,
+        "remove" => sif_quick_remove(&config.files[0], &config.files[1])?,
         _ => println!("Unimplemented operation"),
     }
 
@@ -39,20 +33,20 @@ struct Config {
 }
 
 impl Config {
-    pub fn new(mut args: env::Args) -> Result<Config, &'static str> {
+    pub fn new(mut args: env::Args) -> Result<Config, String> {
         args.next(); // consume the first argument
 
         let operation = match args.next() {
             Some(arg) => arg,
-            None => return Err("No operation specified"),
+            None => return Err("No operation specified".to_string()),
         };
 
         let files: Vec<String> = args.collect();
 
         match operation.as_ref() {
-            "union" | "intersection" => { if files.len() < 2 { return Err("Too few files") } },
-            "nodes" | "edges" | "test" => { if files.len() < 1 { return Err("Please specify a file") } },
-            _ => return Err("Unknown operation"),
+            "remove" => { if files.len() < 2 { return Err(format!("{}: too few inputs specified", operation)) } },
+            "nodes" | "test" => { if files.len() < 1 { return Err(format!("{}: requires input", operation)) } },
+            _ => return Err(format!("{}: Unknown operation", operation)),
         }
             
 

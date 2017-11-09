@@ -1,20 +1,73 @@
 use std::collections::HashSet;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
+use std::error::Error;
+use std::io::prelude::*;
+use std::fs::File;
+use std::io::BufWriter;
 
 extern crate petgraph;
 use petgraph::Graph;
+use petgraph::EdgeType;
+use petgraph::graph::IndexType;
 use petgraph::graph::NodeIndex;
+
+pub fn list_nodes(file: &str) -> Result<(), Box<Error>> {
+
+    let mut f = File::open(file)?;
+    let mut contents = String::new();
+	f.read_to_string(&mut contents)?;
+
+    let mut writer = BufWriter::new(std::io::stdout());
+    for node in nodes(&contents) {
+        writeln!(writer, "{}", node).unwrap();
+    }
+    Ok(())
+}
+
+pub fn overlay<'a, Ty: EdgeType, Ix: IndexType>(to_overlay: Graph<&'a str, &'a str, Ty, Ix>, primary: Graph<&'a str, &'a str, Ty, Ix>) {
+ 
+}
+
+pub fn sif_quick_remove(list_f: &str, graph_f: &str) -> Result<(), Box<Error>> {
+
+    let mut fg = File::open(graph_f)?;
+    let mut graph = String::new();
+	fg.read_to_string(&mut graph)?;
+    //let mut mapped = sif_to_petgraph(&graph);
+
+    let mut fl = File::open(list_f)?;
+    let mut list = String::new();
+	fl.read_to_string(&mut list)?;
+
+    let mut set = HashSet::new(); 
+    for node in list.lines() {
+        set.insert(node);
+    }
+    let filtered = graph.lines()
+        .filter(|line| {
+            let tokens: Vec<&str> = line.split('\t').collect();
+            if tokens.len() !=3 { return false }
+            if set.contains(tokens[0]) || set.contains(tokens[1]) { return false }
+            true
+        }).fold(String::new(), |mut s, line| {
+            s.push_str(&format!("{}\n", line));
+            s
+        });
+
+    println!("{}", filtered);
+
+    Ok(())
+}
 
 /// Compare to t
 /// Get a set of all nodes in the network
 pub fn nodes<'a>(contents: &'a String) -> HashSet<&'a str> {
     contents.lines()
-        .enumerate()
-        .filter_map(|(i, line)| {
+        .filter_map(|line| {
             let tokens: Vec<&str> = line.split('\t').collect();
             if tokens.len() !=3 {
-                println!("Problem parsing line {}", i);
+                // should probably handle this somehow?
                 return None
             }
             return Some(tokens)
@@ -37,16 +90,23 @@ impl<'a> MappedGraph<'a> {
             graph: Graph::new_undirected(),
         }
     }
+
+    /// As this is a "MappedGraph" we need to remap when we modify the graph
+    pub fn remap(&mut self) {
+        self.map.clear();
+        for index in self.graph.node_indices() {
+            self.map.insert(self.graph.node_weight(index).unwrap(), index);
+        }
+        
+    }
 }
 
 /// Convert a sif file into a petgraph graph
 pub fn sif_to_petgraph<'a>(contents: &'a String) -> MappedGraph {
     contents.lines()
-        .enumerate()
-        .filter_map(|(i, line)| {
+        .filter_map(|line| {
             let mut tokens: Vec<&str> = line.split('\t').collect();
             if tokens.len() !=3 {
-                println!("Problem parsing line {}", i);
                 return None
             }
             tokens.swap(1, 2);
