@@ -21,6 +21,7 @@ fn run(config: Config) -> Result<(), Box<Error>> {
     match config.operation.as_ref() {
         "nodes" => list_nodes(&config.files[0])?,
         "remove" => sif_quick_remove(&config.files[0], &config.files[1])?,
+        "overlay" => sif_overlay(&config.files[0], &config.files[1])?,
         _ => println!("Unimplemented operation"),
     }
 
@@ -44,7 +45,7 @@ impl Config {
         let files: Vec<String> = args.collect();
 
         match operation.as_ref() {
-            "remove" => { if files.len() < 2 { return Err(format!("{}: too few inputs specified", operation)) } },
+            "remove" | "overlay"  => { if files.len() < 2 { return Err(format!("{}: too few inputs specified", operation)) } },
             "nodes" | "test" => { if files.len() < 1 { return Err(format!("{}: requires input", operation)) } },
             _ => return Err(format!("{}: Unknown operation", operation)),
         }

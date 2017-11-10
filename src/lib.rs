@@ -25,8 +25,41 @@ pub fn list_nodes(file: &str) -> Result<(), Box<Error>> {
     Ok(())
 }
 
-pub fn overlay<'a, Ty: EdgeType, Ix: IndexType>(to_overlay: Graph<&'a str, &'a str, Ty, Ix>, primary: Graph<&'a str, &'a str, Ty, Ix>) {
- 
+fn filename_to_contents(filename: &str) -> Result<String, Box<Error>> {
+    let mut f = File::open(filename)?;
+    let mut string = String::new();
+    f.read_to_string(&mut string)?;
+    Ok(string)
+}
+
+pub fn sif_overlay(to_overlay: &str, primary: &str) -> Result<(), Box<Error>> {
+
+    let over_string = filename_to_contents(to_overlay).unwrap();
+    let to = sif_to_petgraph(&over_string);
+
+    let prim_string = filename_to_contents(primary).unwrap();
+    let mut pr = sif_to_petgraph(&prim_string);
+    overlay(to, pr);
+    Ok(())
+}
+
+pub fn overlay(to_overlay: MappedGraph, mut primary: MappedGraph) {
+    // iterate over nodes for overlay
+    for (node, index) in to_overlay.map {
+        // check if it's in the primary network
+        if primary.map.contains_key(node) {
+            // if so, iterate over the neighbour nodes in overlay
+            for neighbour in to_overlay.graph.neighbors(index) {
+                // check that the neighbour is also in the primary
+                let neighbour_str = to_overlay.graph.node_weight(neighbour).unwrap();
+                if primary.map.contains_key(neighbour_str) {
+                    primary.graph.update_edge(*primary.map.get(node).unwrap(), *primary.map.get(neighbour_str).unwrap(), "OVERLAY");
+                }
+            }
+        }
+    }
+
+    println!("{}", petgraph_to_sif(primary.graph));
 }
 
 pub fn sif_quick_remove(list_f: &str, graph_f: &str) -> Result<(), Box<Error>> {
