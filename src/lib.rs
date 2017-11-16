@@ -8,15 +8,18 @@ use std::io::BufWriter;
 
 extern crate petgraph;
 use petgraph::Graph;
-use petgraph::EdgeType;
-use petgraph::graph::IndexType;
 use petgraph::graph::NodeIndex;
+
+pub fn read_file(filename: &str) -> Result<String, Box<Error>> {
+    let mut f = File::open(filename)?;
+    let mut string = String::new();
+    f.read_to_string(&mut string)?;
+    Ok(string)
+}
 
 pub fn list_nodes(file: &str) -> Result<(), Box<Error>> {
 
-    let mut f = File::open(file)?;
-    let mut contents = String::new();
-	f.read_to_string(&mut contents)?;
+    let contents = read_file(file)?;
 
     let mut writer = BufWriter::new(std::io::stdout());
     for node in nodes(&contents) {
@@ -25,24 +28,20 @@ pub fn list_nodes(file: &str) -> Result<(), Box<Error>> {
     Ok(())
 }
 
-fn filename_to_contents(filename: &str) -> Result<String, Box<Error>> {
-    let mut f = File::open(filename)?;
-    let mut string = String::new();
-    f.read_to_string(&mut string)?;
-    Ok(string)
-}
-
+/// A simpler overlay for sif formatted network overlays
 pub fn sif_overlay(to_overlay: &str, primary: &str) -> Result<(), Box<Error>> {
 
-    let over_string = filename_to_contents(to_overlay).unwrap();
+    let over_string = read_file(to_overlay)?;
     let to = sif_to_petgraph(&over_string);
 
-    let prim_string = filename_to_contents(primary).unwrap();
-    let mut pr = sif_to_petgraph(&prim_string);
+    let prim_string = read_file(primary)?;
+    let pr = sif_to_petgraph(&prim_string);
     overlay(to, pr);
     Ok(())
 }
 
+/// Overlay any two networks, meaning any edges present in to_overlay will be
+/// mapped onto primary. No nodes are added in this operation.
 pub fn overlay(to_overlay: MappedGraph, mut primary: MappedGraph) {
     // iterate over nodes for overlay
     for (node, index) in to_overlay.map {
@@ -62,16 +61,24 @@ pub fn overlay(to_overlay: MappedGraph, mut primary: MappedGraph) {
     println!("{}", petgraph_to_sif(primary.graph));
 }
 
+
+/// Output the union of two sif files as sif
+pub fn sif_union(a: &str, b: &str) -> Result<(), Box<Error>> {
+
+    let mut f = File::open(a)?;
+    let mut g_a = String::new();
+    f.read_to_string(&mut g_a)?;
+
+    Ok( () )
+
+}
+
+/// Remove any nodes within the list from a sif file
+/// Accepts a newline delimited list and a standard sif file as input
 pub fn sif_quick_remove(list_f: &str, graph_f: &str) -> Result<(), Box<Error>> {
 
-    let mut fg = File::open(graph_f)?;
-    let mut graph = String::new();
-	fg.read_to_string(&mut graph)?;
-    //let mut mapped = sif_to_petgraph(&graph);
-
-    let mut fl = File::open(list_f)?;
-    let mut list = String::new();
-	fl.read_to_string(&mut list)?;
+    let graph = read_file(graph_f)?;
+    let list = read_file(list_f)?;
 
     let mut set = HashSet::new(); 
     for node in list.lines() {
