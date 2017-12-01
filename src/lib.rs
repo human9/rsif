@@ -7,6 +7,11 @@ use std::fs::File;
 use std::io::BufWriter;
 
 extern crate petgraph;
+extern crate serde;
+extern crate serde_json;
+
+#[macro_use]
+extern crate serde_derive;
 use petgraph::Graph;
 use petgraph::graph::NodeIndex;
 
@@ -139,6 +144,75 @@ impl<'a> MappedGraph<'a> {
         }
         
     }
+}
+
+pub fn to_json(input: &str) -> Result<(), Box<Error>> {
+
+    let graph_str = read_file(input)?;
+    let graph = sif_to_petgraph(&graph_str);
+
+    petgraph_to_json(graph.graph);
+
+    Ok(())
+}
+/// Print as json
+pub fn petgraph_to_json<'a>(graph: Graph<&'a str, &'a str, petgraph::Undirected, u32>) {
+    
+    let mut nodes = Vec::new();
+    let mut indices = Vec::new();
+    let mut index_ptr = Vec::new();
+
+    for index in graph.node_indices() {
+        nodes.push(graph.node_weight(index).unwrap().to_string());
+        let mut neighbors: Vec<usize> = graph.neighbors(index).map(|n| { n.index() }).collect();
+        index_ptr.push(neighbors.len() - 1);
+        indices.append(&mut neighbors);
+    }
+
+    let mut data = Vec::new();
+    let mut i = 0;
+    while i < nodes.len() {
+        data.push(1.0);
+        i = i+1;
+    }
+    
+    #[derive(Serialize)]
+    struct JSONGraph {
+        nodes: Vec<String>,
+        data: Vec<f32>,
+        index: Vec<usize>,
+        indptr: Vec<usize>
+    }
+
+    #[derive(Serialize)]
+    struct AntisinkMap {
+
+    }
+
+    #[derive(Serialize)]
+    struct Output {
+        model: &'static str,
+        antisink_map: AntisinkMap,
+        source_nodes: Vec<String>,
+        sink_nodes: Vec<String>,
+        df: f32,
+        graph: JSONGraph,
+    }
+
+    let output = Output {
+        model: "normalized-channel",
+        antisink_map: AntisinkMap {},
+        source_nodes: vec!["Test".to_string()],
+        sink_nodes: vec!["Test".to_string()],
+        df: 0.85,
+        graph: JSONGraph { 
+            nodes: nodes,
+            data: data,
+            index: indices,
+            indptr: index_ptr
+        },
+    };
+    println!("{}", serde_json::to_string(&output).unwrap());
 }
 
 /// Convert a sif file into a petgraph graph

@@ -5,3 +5,6 @@ authors = ["john.salamon"]
 
 [dependencies]
 petgraph = "*"
+serde = "*"
+serde_json = "*"
+serde_derive = "*"
