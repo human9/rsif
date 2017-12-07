@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
+use std::collections::hash_map::Keys;
 use std::error::Error;
 use std::io::prelude::*;
 use std::fs::File;
@@ -71,7 +72,16 @@ pub fn overlay(to_overlay: MappedGraph, mut primary: MappedGraph) {
 pub fn sif_union(a: &str, b: &str) -> Result<(), Box<Error>> {
 
     let mut a_string = read_file(a)?;
-    let mut a_string = read_file(a)?;
+    let mut a_graph = sif_to_petgraph(&a_string);
+    let mut b_string = read_file(b)?;
+    let mut b_graph = sif_to_petgraph(&b_string);
+
+    let mut union = MappedGraph::new();
+    for name in a_graph.names().chain(b_graph.names()) {
+        union.add_node(name);
+    }
+    // we've got all the nodes, now add edges
+
 
     Ok( () )
 
@@ -132,6 +142,25 @@ impl<'a> MappedGraph<'a> {
         MappedGraph {
             map: HashMap::new(),
             graph: Graph::new_undirected(),
+        }
+    }
+
+    pub fn names(&self) -> Keys<&'a str, NodeIndex<u32>> {
+        self.map.keys()
+    }
+
+    /// Add a new node with the given name.
+    /// Returns the new NodeIndex, or an old NodeIndex if it already existed.
+    pub fn add_node(&mut self, weight: &'a str) -> NodeIndex<u32> {
+        match self.map.entry(weight) {
+            Occupied(entry) => {
+                *entry.get()
+            }
+            Vacant(entry) => {
+                let index = self.graph.add_node(weight); 
+                entry.insert(index);
+                index
+            }
         }
     }
 
@@ -251,18 +280,7 @@ pub fn sif_to_petgraph<'a>(contents: &'a String) -> MappedGraph {
             tokens.swap(1, 2);
             return Some(tokens)
         }).fold(MappedGraph::new(), |mut graph, t| {
-            let nodes: Vec<NodeIndex<u32>> = t.iter().take(2).map(|name| {
-                match graph.map.entry(name) {
-                    Occupied(entry) => {
-                        *entry.get()
-                    }
-                    Vacant(entry) => {
-                        let index = graph.graph.add_node(name);
-                        entry.insert(index);
-                        index
-                    }
-                }
-            }).collect();
+            let nodes: Vec<NodeIndex<u32>> = t.iter().take(2).map(|name| graph.add_node(name)).collect();
             graph.graph.update_edge(nodes[0], nodes[1], t[2]);
             graph
         })
