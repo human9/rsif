@@ -70,9 +70,8 @@ pub fn overlay(to_overlay: MappedGraph, mut primary: MappedGraph) {
 /// Output the union of two sif files as sif
 pub fn sif_union(a: &str, b: &str) -> Result<(), Box<Error>> {
 
-    let mut f = File::open(a)?;
-    let mut g_a = String::new();
-    f.read_to_string(&mut g_a)?;
+    let mut a_string = read_file(a)?;
+    let mut a_string = read_file(a)?;
 
     Ok( () )
 
@@ -155,6 +154,31 @@ pub fn to_json(input: &str) -> Result<(), Box<Error>> {
 
     Ok(())
 }
+
+
+#[derive(Serialize)]
+struct JSONGraph {
+    nodes: Vec<String>,
+    data: Vec<f32>,
+    index: Vec<usize>,
+    indptr: Vec<usize>
+}
+
+#[derive(Serialize)]
+struct AntisinkMap {
+
+}
+
+#[derive(Serialize)]
+struct SerialJSON {
+    model: &'static str,
+    antisink_map: AntisinkMap,
+    source_nodes: Vec<String>,
+    sink_nodes: Vec<String>,
+    df: f32,
+    graph: JSONGraph,
+}
+
 /// Print as json
 pub fn petgraph_to_json<'a>(graph: Graph<&'a str, &'a str, petgraph::Undirected, u32>) {
     
@@ -176,30 +200,8 @@ pub fn petgraph_to_json<'a>(graph: Graph<&'a str, &'a str, petgraph::Undirected,
         i = i+1;
     }
     
-    #[derive(Serialize)]
-    struct JSONGraph {
-        nodes: Vec<String>,
-        data: Vec<f32>,
-        index: Vec<usize>,
-        indptr: Vec<usize>
-    }
 
-    #[derive(Serialize)]
-    struct AntisinkMap {
-
-    }
-
-    #[derive(Serialize)]
-    struct Output {
-        model: &'static str,
-        antisink_map: AntisinkMap,
-        source_nodes: Vec<String>,
-        sink_nodes: Vec<String>,
-        df: f32,
-        graph: JSONGraph,
-    }
-
-    let output = Output {
+    let output = SerialJSON {
         model: "normalized-channel",
         antisink_map: AntisinkMap {},
         source_nodes: vec!["Test".to_string()],
@@ -213,6 +215,29 @@ pub fn petgraph_to_json<'a>(graph: Graph<&'a str, &'a str, petgraph::Undirected,
         },
     };
     println!("{}", serde_json::to_string(&output).unwrap());
+}
+
+pub fn json_to_petgraph<'a>(contents: &'a String) -> Result<(), Box<Error>> {
+   // serialise contents
+    let mut nodes = Vec::new();
+    let mut indices = Vec::new();
+    let mut index_ptr = Vec::new();
+    let mut data = Vec::new();
+   let input = SerialJSON {
+        model: "normalized-channel",
+        antisink_map: AntisinkMap {},
+        source_nodes: vec!["Test".to_string()],
+        sink_nodes: vec!["Test".to_string()],
+        df: 0.85,
+        graph: JSONGraph { 
+            nodes: nodes,
+            data: data,
+            index: indices,
+            indptr: index_ptr
+        }
+   };
+       
+   Ok(()) 
 }
 
 /// Convert a sif file into a petgraph graph
