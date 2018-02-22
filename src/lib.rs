@@ -7,6 +7,8 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::io::BufWriter;
 
+extern crate cgmath;
+use cgmath::Vector2;
 extern crate petgraph;
 extern crate serde;
 extern crate serde_json;
@@ -56,7 +58,7 @@ pub fn overlay(to_overlay: MappedGraph, mut primary: MappedGraph) {
             // if so, iterate over the neighbour nodes in overlay
             for neighbour in to_overlay.graph.neighbors(index) {
                 // check that the neighbour is also in the primary
-                let neighbour_str = to_overlay.graph.node_weight(neighbour).unwrap().0;
+                let neighbour_str = to_overlay.graph.node_weight(neighbour).unwrap().name;
                 if primary.map.contains_key(neighbour_str) {
                     primary.graph.update_edge(*primary.map.get(node).unwrap(), *primary.map.get(neighbour_str).unwrap(), "OVERLAY");
                 }
@@ -78,7 +80,7 @@ pub fn sif_union(a: &str, b: &str) -> Result<(), Box<Error>> {
 
     let mut union = MappedGraph::new();
     for name in a_graph.names().chain(b_graph.names()) {
-        union.add_node(name);
+        union.add_node(Node::new(name));
     }
     // we've got all the nodes, now add edges
 
@@ -134,7 +136,7 @@ pub fn nodes<'a>(contents: &'a String) -> HashSet<&'a str> {
 
 pub struct MappedGraph<'a> {
     map: HashMap<&'a str, NodeIndex<u32>>,
-    pub graph: Graph<(&'a str, f32, f32), &'a str, petgraph::Undirected, u32>,
+    pub graph: Graph<Node<'a>, &'a str, petgraph::Undirected, u32>,
 }
 
 impl<'a> MappedGraph<'a> {
@@ -151,13 +153,13 @@ impl<'a> MappedGraph<'a> {
 
     /// Add a new node with the given name.
     /// Returns the new NodeIndex, or an old NodeIndex if it already existed.
-    pub fn add_node(&mut self, weight: &'a str) -> NodeIndex<u32> {
-        match self.map.entry(weight) {
+    pub fn add_node(&mut self, weight: Node<'a>) -> NodeIndex<u32> {
+        match self.map.entry(weight.name) {
             Occupied(entry) => {
                 *entry.get()
             }
             Vacant(entry) => {
-                let index = self.graph.add_node((weight, 0., 0.)); 
+                let index = self.graph.add_node(Node::new(weight.name)); 
                 entry.insert(index);
                 index
             }
@@ -168,7 +170,7 @@ impl<'a> MappedGraph<'a> {
     pub fn remap(&mut self) {
         self.map.clear();
         for index in self.graph.node_indices() {
-            self.map.insert(self.graph.node_weight(index).unwrap().0, index);
+            self.map.insert(self.graph.node_weight(index).unwrap().name, index);
         }
         
     }
@@ -209,14 +211,14 @@ struct SerialJSON {
 }
 
 /// Print as json
-pub fn petgraph_to_json<'a>(graph: Graph<(&'a str, f32, f32), &'a str, petgraph::Undirected, u32>) {
+pub fn petgraph_to_json<'a>(graph: Graph<Node, &'a str, petgraph::Undirected, u32>) {
     
     let mut nodes = Vec::new();
     let mut indices = Vec::new();
     let mut index_ptr = Vec::new();
 
     for index in graph.node_indices() {
-        nodes.push(graph.node_weight(index).unwrap().0.to_string());
+        nodes.push(graph.node_weight(index).unwrap().name.to_string());
         let mut neighbors: Vec<usize> = graph.neighbors(index).map(|n| { n.index() }).collect();
         index_ptr.push(neighbors.len() - 1);
         indices.append(&mut neighbors);
@@ -269,6 +271,23 @@ pub fn json_to_petgraph<'a>(contents: &'a String) -> Result<(), Box<Error>> {
    Ok(()) 
 }
 
+pub struct Node<'a> {
+    pub name: &'a str,
+    pub pos: Vector2<f32>,
+    pub disp: Vector2<f32>,
+}
+
+impl<'a> Node<'a> {
+
+    pub fn new(name: &'a str) -> Self {
+        Node {
+            name: name,
+            pos: Vector2::new(0., 0.),
+            disp: Vector2::new(0., 0.),
+        }
+    }
+}
+
 /// Convert a sif file into a petgraph graph
 pub fn sif_to_petgraph<'a>(contents: &'a String) -> MappedGraph {
     contents.lines()
@@ -280,18 +299,18 @@ pub fn sif_to_petgraph<'a>(contents: &'a String) -> MappedGraph {
             tokens.swap(1, 2);
             return Some(tokens)
         }).fold(MappedGraph::new(), |mut graph, t| {
-            let nodes: Vec<NodeIndex<u32>> = t.iter().take(2).map(|name| graph.add_node(name)).collect();
+            let nodes: Vec<NodeIndex<u32>> = t.iter().take(2).map(|name| graph.add_node(Node::new(name))).collect();
             graph.graph.update_edge(nodes[0], nodes[1], t[2]);
             graph
         })
 }
 
 /// Export petgraph as sif textfile
-pub fn petgraph_to_sif<'a>(mg: Graph<(&'a str, f32, f32), &'a str, petgraph::Undirected, u32>) -> String {
+pub fn petgraph_to_sif<'a>(mg: Graph<Node, &'a str, petgraph::Undirected, u32>) -> String {
     mg.edge_indices()
         .fold(String::new(), |mut s, index| {
             let (a, b) = mg.edge_endpoints(index).unwrap();
-            s.push_str(&format!("{}\t{}\t{}\n", mg.node_weight(a).unwrap().0, mg.edge_weight(index).unwrap(), mg.node_weight(b).unwrap().0));
+            s.push_str(&format!("{}\t{}\t{}\n", mg.node_weight(a).unwrap().name, mg.edge_weight(index).unwrap(), mg.node_weight(b).unwrap().name));
             s
         })
 }
