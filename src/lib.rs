@@ -11,6 +11,7 @@ extern crate cgmath;
 use cgmath::Vector2;
 extern crate petgraph;
 extern crate serde;
+use serde::de::DeserializeOwned;
 extern crate serde_json;
 
 #[macro_use]
@@ -83,7 +84,25 @@ pub fn sif_union(a: &str, b: &str) -> Result<(), Box<Error>> {
         union.add_node(Node::new(name));
     }
     // we've got all the nodes, now add edges
+    //
 
+    for index in a_graph.graph.edge_indices() {
+        let (a, b) = a_graph.graph.edge_endpoints(index).unwrap();
+        let a_str = a_graph.graph.node_weight(a).unwrap().name;
+        let b_str = a_graph.graph.node_weight(b).unwrap().name;
+
+        union.graph.update_edge(*union.map.get(a_str).unwrap(), *union.map.get(b_str).unwrap(), "-");
+    }
+    
+    for index in b_graph.graph.edge_indices() {
+        let (a, b) = b_graph.graph.edge_endpoints(index).unwrap();
+        let a_str = b_graph.graph.node_weight(a).unwrap().name;
+        let b_str = b_graph.graph.node_weight(b).unwrap().name;
+
+        union.graph.update_edge(*union.map.get(a_str).unwrap(), *union.map.get(b_str).unwrap(), "-");
+    }
+    
+    println!("{}", petgraph_to_sif(union.graph));
 
     Ok( () )
 
@@ -176,6 +195,17 @@ impl<'a> MappedGraph<'a> {
     }
 }
 
+pub fn to_sif(input: &str) -> Result<(), Box<Error>> {
+
+    let contents = read_file(input)?;
+    let serial: SerialJSON = serde_json::from_str(&contents)?;
+    let graph = json_to_petgraph(&serial)?;
+    println!("{}", petgraph_to_sif(graph.graph));
+
+    Ok(())
+}
+
+
 pub fn to_json(input: &str) -> Result<(), Box<Error>> {
 
     let graph_str = read_file(input)?;
@@ -187,7 +217,7 @@ pub fn to_json(input: &str) -> Result<(), Box<Error>> {
 }
 
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct JSONGraph {
     nodes: Vec<String>,
     data: Vec<f32>,
@@ -195,14 +225,14 @@ struct JSONGraph {
     indptr: Vec<usize>
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct AntisinkMap {
 
 }
 
-#[derive(Serialize)]
-struct SerialJSON {
-    model: &'static str,
+#[derive(Serialize, Deserialize)]
+pub struct SerialJSON<'a> {
+    model: &'a str,
     antisink_map: AntisinkMap,
     source_nodes: Vec<String>,
     sink_nodes: Vec<String>,
@@ -223,6 +253,11 @@ pub fn petgraph_to_json<'a>(graph: Graph<Node, &'a str, petgraph::Undirected, u3
         index_ptr.push(neighbors.len() - 1);
         indices.append(&mut neighbors);
     }
+
+    //use the indptr to see how many edges need to be read (from index)
+    //index into the nodes to identify names
+    //data contains edge information
+    //
 
     let mut data = Vec::new();
     let mut i = 0;
@@ -248,28 +283,29 @@ pub fn petgraph_to_json<'a>(graph: Graph<Node, &'a str, petgraph::Undirected, u3
     println!("{}", serde_json::to_string(&output).unwrap());
 }
 
-pub fn json_to_petgraph<'a>(contents: &'a String) -> Result<(), Box<Error>> {
-   // serialise contents
-    let mut nodes = Vec::new();
-    let mut indices = Vec::new();
-    let mut index_ptr = Vec::new();
-    let mut data = Vec::new();
-   let input = SerialJSON {
-        model: "normalized-channel",
-        antisink_map: AntisinkMap {},
-        source_nodes: vec!["Test".to_string()],
-        sink_nodes: vec!["Test".to_string()],
-        df: 0.85,
-        graph: JSONGraph { 
-            nodes: nodes,
-            data: data,
-            index: indices,
-            indptr: index_ptr
+pub fn json_to_petgraph<'a>(serial: &'a SerialJSON) -> Result<MappedGraph<'a>, Box<Error>> {
+
+    let mut graph = MappedGraph::new();
+    let mut node_indices = Vec::new();
+    
+    for node in 0..serial.graph.nodes.len() {
+        node_indices.push(graph.add_node(Node::new(&serial.graph.nodes[node])));
+    }
+        
+    let mut source = 0;
+    let mut node_index = 0;
+    for ptr in serial.graph.indptr.iter() {
+        println!("ptr: {}", ptr);
+        for i in 0..*ptr+1 {
+            println!("index in index: {}", source+i);
+            let target = serial.graph.index[source + i];
+            graph.graph.update_edge(node_indices[node_index], node_indices[target], "json");
         }
-   };
-       
-   Ok(()) 
-}
+        source += *ptr+1;
+        node_index += 1;
+    }
+    Ok(graph) 
+}//
 
 pub struct Node<'a> {
     pub name: &'a str,
