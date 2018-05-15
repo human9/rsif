@@ -123,7 +123,7 @@ pub fn sif_quick_remove(list_f: &str, graph_f: &str) -> Result<(), Box<Error>> {
         .filter(|line| {
             let tokens: Vec<&str> = line.split('\t').collect();
             if tokens.len() !=3 { return false }
-            if set.contains(tokens[0]) || set.contains(tokens[1]) { return false }
+            if set.contains(tokens[0]) || set.contains(tokens[2]) { return false }
             true
         }).fold(String::new(), |mut s, line| {
             s.push_str(&format!("{}\n", line));
