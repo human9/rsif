@@ -220,8 +220,8 @@ pub fn to_json(input: &str) -> Result<(), Box<Error>> {
 #[derive(Serialize, Deserialize)]
 struct JSONGraph {
     nodes: Vec<String>,
-    data: Vec<f32>,
-    index: Vec<usize>,
+    data: Vec<String>,
+    indices: Vec<usize>,
     indptr: Vec<usize>
 }
 
@@ -247,10 +247,14 @@ pub fn petgraph_to_json<'a>(graph: Graph<Node, &'a str, petgraph::Undirected, u3
     let mut indices = Vec::new();
     let mut index_ptr = Vec::new();
 
+    let mut last = 0;
+    index_ptr.push(last);
+
     for index in graph.node_indices() {
         nodes.push(graph.node_weight(index).unwrap().name.to_string());
         let mut neighbors: Vec<usize> = graph.neighbors(index).map(|n| { n.index() }).collect();
-        index_ptr.push(neighbors.len() - 1);
+        last = last + neighbors.len();
+        index_ptr.push(last);
         indices.append(&mut neighbors);
     }
 
@@ -262,7 +266,7 @@ pub fn petgraph_to_json<'a>(graph: Graph<Node, &'a str, petgraph::Undirected, u3
     let mut data = Vec::new();
     let mut i = 0;
     while i < nodes.len() {
-        data.push(1.0);
+        data.push("1.0".to_string());
         i = i+1;
     }
     
@@ -276,7 +280,7 @@ pub fn petgraph_to_json<'a>(graph: Graph<Node, &'a str, petgraph::Undirected, u3
         graph: JSONGraph { 
             nodes: nodes,
             data: data,
-            index: indices,
+            indices: indices,
             indptr: index_ptr
         },
     };
@@ -291,21 +295,20 @@ pub fn json_to_petgraph<'a>(serial: &'a SerialJSON) -> Result<MappedGraph<'a>, B
     for node in 0..serial.graph.nodes.len() {
         node_indices.push(graph.add_node(Node::new(&serial.graph.nodes[node])));
     }
-        
+
     let mut source = 0;
-    let mut node_index = 0;
+    let mut last: usize = 0;
     for ptr in serial.graph.indptr.iter() {
-        println!("ptr: {}", ptr);
-        for i in 0..*ptr+1 {
-            println!("index in index: {}", source+i);
-            let target = serial.graph.index[source + i];
-            graph.graph.update_edge(node_indices[node_index], node_indices[target], "json");
+        while last < *ptr {
+            let source = serial.graph.indices[source];
+            let target = serial.graph.indices[last];
+            graph.graph.update_edge(node_indices[source], node_indices[target], "json");
+            last += 1;
         }
-        source += *ptr+1;
-        node_index += 1;
+        source = last;
     }
     Ok(graph) 
-}//
+}
 
 pub struct Node<'a> {
     pub name: &'a str,
