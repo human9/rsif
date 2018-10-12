@@ -265,7 +265,7 @@ pub fn petgraph_to_json<'a>(graph: Graph<Node, &'a str, petgraph::Undirected, u3
 
     let mut data = Vec::new();
     let mut i = 0;
-    while i < nodes.len() {
+    while i < indices.len() {
         data.push("1.0".to_string());
         i = i+1;
     }
